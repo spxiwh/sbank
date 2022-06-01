@@ -475,11 +475,12 @@ if opts.trial_waveforms:
     if opts.trial_waveforms.endswith(('.xml', '.xml.gz')):
         trialdoc = utils.load_filename(opts.trial_waveforms, contenthandler=ContentHandler)
         trial_sngls = lsctables.SnglInspiralTable.get_table(trialdoc)
-        proposal = (tmplt_class.from_sngl(t, bank=bank) for t in trial_sngls)
+        proposal_list = (tmplt_class.from_sngl(t, bank=bank)
+                         for t in trial_sngls)
     elif opts.trial_waveforms.endswith(('.hdf', '.h5', '.hdf5')):
         hdf_fp = h5py.File(opts.trial_waveforms, 'r')
         num_points = len(hdf_fp['mass1'])
-        proposal=[]
+        proposal_list = []
         for idx in range(num_points):
             # Reading one point in at a time from HDF for 2 million points can
             # be slow. Better to read in groups of points at a time and process
@@ -492,8 +493,9 @@ if opts.trial_waveforms:
             c_idx = idx % 100000
             approx = (hdf_fp['approximant'][c_idx]).decode('utf-8')
             tmplt_class = waveforms[approx]
-            proposal.append(tmplt_class.from_dict(tmp, c_idx, bank))
+            proposal_list.append(tmplt_class.from_dict(tmp, c_idx, bank))
         hdf_fp.close()
+     proposal = iter(proposal_list)
 
 else:
     params = {'mass1': (opts.mass1_min, opts.mass1_max),
@@ -527,7 +529,12 @@ status_format = "\t".join("%s: %s" % name_format for name_format in zip(tmplt_cl
 #
 # main working loop
 #
-for tmplt in proposal:
+while 1:
+
+    try:
+        tmplt = next(proposal)
+    except StopIteration:
+        break
 
     #
     # check if stopping criterion has been reached
