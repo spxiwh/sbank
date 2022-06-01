@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/ian.harry/virtualenvs/pycbc_osg/bin/python
 # -*- coding: utf-8 -*-
 #
 # Copyright (C) 2011  Nickolas Fotopoulos
@@ -29,6 +29,8 @@ from time import strftime
 import numpy as np
 
 import h5py
+
+import multiprocessing
 
 from scipy.interpolate import UnivariateSpline
 
@@ -529,64 +531,107 @@ status_format = "\t".join("%s: %s" % name_format for name_format in zip(tmplt_cl
 #
 # main working loop
 #
+
+def get_match_matcher(tmplt):
+    # HACK: Not sure how to do this better (connected to one below)
+    tmplt.noise_model = noise_model
+    match, matcher = bank.covers(tmplt, opts.match_min)
+    return match, matcher
+
+multiprocessing_enabled = 1
+ncores = 10
+
 while 1:
-
-    try:
-        tmplt = next(proposal)
-    except StopIteration:
-        break
-
     #
     # check if stopping criterion has been reached
     #
-    if not (((k + float(sum(ks)))/len(ks) < opts.convergence_threshold) and \
+    curr_conv = (k + float(sum(ks)))/len(ks)
+
+    if not ((curr_conv < opts.convergence_threshold) and \
             (len(tbl) < opts.max_new_templates)):
         break
 
+    if multiprocessing_enabled and curr_conv > 20:
+        nprops = int(curr_conv)
+    else:
+        nprops = 1
+
+    if nprops > 1:
+        pool = multiprocessing.Pool(ncores)
+        mmap = pool.map
+        mproc = True
+    else:
+        mmap = map
+        mproc = False
+
+    curr_tmplts = []
+    for _ in range(nprops):
+        try:
+            curr_tmplts.append(next(proposal))
+            # HACK: How to do this better?
+            del curr_tmplts[-1].noise_model
+        except StopIteration:
+            break
+    if not len(curr_tmplts):
+        break
+
     # accounting for number of proposals
-    k += 1 # since last acceptance
-    nprop += 1 # total throughout lifetime of process
+    k += len(curr_tmplts) # since last acceptance
+    nprop += len(curr_tmplts) # total throughout lifetime of process
 
     #
     # check if proposal is already covered by existing templates
     #
-    match, matcher = bank.covers(tmplt, opts.match_min)
-    if match < opts.match_min:
-        bank.insort(tmplt)
-        ks.append(k)
+    outs = mmap(get_match_matcher, curr_tmplts)
+    if mproc:
+        pool.close()
+
+    accept_count = 0
+    for out, tmplt in zip(outs, curr_tmplts):
+        # HACK: All part of the same hack to avoid pickling a lambda function
+        tmplt.noise_model = noise_model
+        match = out[0]
+        matcher = out[1]
+        if match < opts.match_min:
+            accept_count += 1
+            bank.insort(tmplt)
+            if opts.verbose:
+                print("accepted:\t\t", tmplt)
+                if matcher is not None:
+                    print("max match (%.4f):\t" % match, matcher)
+
+            # Add to single inspiral table. Do not store templates that
+            # were in the original bank, only store the additions.
+            if not hasattr(tmplt, 'is_seed_point'):
+                if opts.output_filename.endswith(('.xml', '.xml.gz')):
+                    row = tmplt.to_sngl()
+                    # If we figure out how to use metaio's SnglInspiralTable the
+                    # following change then defines the event_id
+                    #curr_id = EventIDColumn()
+                    #curr_id.id = len(bank)
+                    #curr_id.snglInspiralTable = row
+                    #row.event_id = curr_id
+                    row.ifo = opts.instrument
+                    row.process_id = process.process_id
+                    row.event_id = tbl.get_next_id()
+                    if opts.flow_column:
+                        setattr(row, opts.flow_column, tmplt.flow)
+                    tbl.append(row)
+                if opts.output_filename.endswith(('.hdf', '.h5', '.hdf5')):
+                    row = tmplt.to_storage_arr()
+                    if len(tbl) == 0:
+                        tbl = row
+                    else:
+                        tbl = np.append(tbl, row)
+
+            if opts.checkpoint and not len(bank) % opts.checkpoint:
+                checkpoint_save(xmldoc, opts.output_filename, process)
+
+    if accept_count:
+        ks.append(int(k / accept_count))
+        k = 0
         if opts.verbose:
             print("\nbank size: %d\t\tproposed: %d\trejection rate: %.6f / (%.6f)" % (len(bank), nprop, 1 - float(len(ks))/float(sum(ks)), 1 - 1./opts.convergence_threshold ))
-            print("accepted:\t\t", tmplt)
-            if matcher is not None:
-                print("max match (%.4f):\t" % match, matcher)
-        k = 0
-
-        # Add to single inspiral table. Do not store templates that
-        # were in the original bank, only store the additions.
-        if not hasattr(tmplt, 'is_seed_point'):
-            if opts.output_filename.endswith(('.xml', '.xml.gz')):
-                row = tmplt.to_sngl()
-                # If we figure out how to use metaio's SnglInspiralTable the
-                # following change then defines the event_id
-                #curr_id = EventIDColumn()
-                #curr_id.id = len(bank)
-                #curr_id.snglInspiralTable = row
-                #row.event_id = curr_id
-                row.ifo = opts.instrument
-                row.process_id = process.process_id
-                row.event_id = tbl.get_next_id()
-                if opts.flow_column:
-                    setattr(row, opts.flow_column, tmplt.flow)
-                tbl.append(row)
-            if opts.output_filename.endswith(('.hdf', '.h5', '.hdf5')):
-                row = tmplt.to_storage_arr()
-                if len(tbl) == 0:
-                    tbl = row
-                else:
-                    tbl = np.append(tbl, row)
-
-        if opts.checkpoint and not len(bank) % opts.checkpoint:
-            checkpoint_save(xmldoc, opts.output_filename, process)
 
     # clear the proposal template if caching is not enabled
     if not opts.cache_waveforms:

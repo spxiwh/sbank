@@ -185,7 +185,7 @@ class Bank(object):
         else:
             tmpbank = nhood
         if not tmpbank:
-            return (max_match, template)
+            return (max_match, None)
 
         # sort the bank by its nearness to tmplt in mchirp
         # NB: This sort comes up as a dominating cost if you profile,
@@ -252,14 +252,14 @@ class Bank(object):
                 df /= 2.0
 
             if match > min_match:
-                return (match, tmplt)
+                return (match, str(tmplt))
 
             # record match and template params for highest match
             if match > max_match:
                 max_match = match
                 template = tmplt
 
-        return (max_match, template)
+        return (max_match, str(template) if template is not None else None)
 
     def max_match(self, proposal):
         match, best_tmplt_ind = self.argmax_match(proposal)
