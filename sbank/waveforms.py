@@ -30,6 +30,7 @@ from ligo.lw.lsctables import SnglInspiralTable as llwsit
 
 from .overlap import SBankComputeMatchSkyLoc, SBankComputeMatch
 from .psds import get_neighborhood_PSD, get_ASD
+from .psds import get_neighborhood_df_fmax, get_PSD
 from .tau0tau3 import m1m2_to_tau0tau3
 
 np.seterr(all="ignore")
@@ -217,6 +218,12 @@ class AlignedSpinTemplate(object):
         self._dur = duration
         self._f_final = None
         self._fhigh_max = bank.fhigh_max
+        self.coarse_match_df = bank.coarse_match_df
+        self.iterative_match_df_max = bank.iterative_match_df_max
+        self.noise_model = bank.noise_model
+
+        # DELETE THIS LATER!
+        self.VERBOSE = False
 
     def optimize_flow(self, flow_min, fhigh_max, noise_model, df=0.1,
                       sigma_frac=0.99):
@@ -357,7 +364,42 @@ class AlignedSpinTemplate(object):
         or do whatever other expensive things you didn't want to do when
         it was just a proposal.
         """
-        pass
+        # Needs a conditional to only do this when necessary
+        if 1:
+            self.generate_all_waveforms()
+        self.VERBOSE = True
+
+    def generate_all_waveforms(self):
+        # Figure out what delta_fs are needed and generate
+
+        # First get the delta_f of this waveform
+        df_end, f_final = get_neighborhood_df_fmax([self], self.flow)
+
+        # If using coarse match, we need that point
+        if self.coarse_match_df:
+            PSD = get_PSD(self.coarse_match_df, self.flow, f_final,
+                          self.noise_model)
+            self.get_whitened_normalized(self.coarse_match_df, PSD=PSD)
+
+        # Then figure out what other points are needed. Some considerations:
+        # * We may need a smaller df if testing against a point which is longer
+        # * We may be using iterative_match
+        if self.iterative_match_df_max is not None:
+            # Add factor of 2 here and below for safety
+            df_start = max(df_end*2, self.iterative_match_df_max)
+        else:
+            df_start = df_end*2
+
+        df_end = df_end / 2
+
+        df = df_start
+
+        while df >= df_end:
+            PSD = get_PSD(df, self.flow, f_final, self.noise_model)
+            self.get_whitened_normalized(df, PSD=PSD)
+            df /= 2.0
+        
+
 
     def _compute_waveform(self, df, f_final):
 
@@ -391,6 +433,9 @@ class AlignedSpinTemplate(object):
         its own length.
         """
         if df not in self._wf:
+            if self.VERBOSE:
+                print("WARNING:, Generating", df, "and have", self._wf)
+                raise ValueError()
             wf = self._compute_waveform(df, self.f_final)
             if ASD is None:
                 ASD = PSD**0.5
