@@ -495,7 +495,7 @@ if opts.trial_waveforms:
             tmplt_class = waveforms[approx]
             proposal_list.append(tmplt_class.from_dict(tmp, c_idx, bank))
         hdf_fp.close()
-     proposal = iter(proposal_list)
+    proposal = iter(proposal_list)
 
 else:
     params = {'mass1': (opts.mass1_min, opts.mass1_max),
