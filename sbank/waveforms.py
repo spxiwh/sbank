@@ -352,7 +352,11 @@ class AlignedSpinTemplate(object):
         new_tmplt['spin2z'] = self.spin2z
         new_tmplt['template_duration'] = self.dur
         new_tmplt['f_lower'] = self.flow
-        new_tmplt['approximant'] = self.approximant
+        try:
+            new_tmplt['approximant'] = self.approximant
+        except ValueError:
+            # May not have this field
+            pass
         return new_tmplt
 
     def __repr__(self):
@@ -1061,6 +1065,8 @@ class IMRPhenomPv2THATemplate(IMRPrecessingSpinTemplate):
     #             ('alpha0', float32), ('phi0', float32), ('theta', float32),
     #             ('phi', float32), ('psi', float32)]
     approximant = "IMRPhenomPv2"
+    hdf_dtype = [e for e in PrecessingSpinTemplate.hdf_dtype
+                 if e != ('approximant', 'S32')]
 
     def __init__(self, m1, m2, spin1x, spin1y, spin1z, spin2x, spin2y, spin2z,
                  theta, phi, iota, psi, orb_phase, bank, flow=None,

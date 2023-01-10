@@ -406,7 +406,8 @@ for file_approx in opts.bank_seed:
 
     elif opts.output_filename.endswith(('.hdf', '.h5', '.hdf5')):
         hdf_fp = h5py.File(seed_file, 'r')
-        bank.add_from_hdf(hdf_fp)
+        default_waveform = waveforms[approx]
+        bank.add_from_hdf(hdf_fp, default_waveform)
         hdf_fp.close()
 
 if opts.verbose:
