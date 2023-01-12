@@ -491,9 +491,12 @@ if opts.trial_waveforms:
                 for name in hdf_fp:
                     tmp[name] = hdf_fp[name][idx:end_idx]
             c_idx = idx % 100000
-            approx = (hdf_fp['approximant'][c_idx]).decode('utf-8')
-            tmplt_class = waveforms[approx]
-            proposal.append(tmplt_class.from_dict(tmp, c_idx, bank))
+            if 'approximant' in hdf_fp:
+                approx = (hdf_fp['approximant'][c_idx]).decode('utf-8')
+                curr_tmplt_class = waveforms[approx]
+            else:
+                curr_tmplt_class = tmplt_class
+            proposal.append(curr_tmplt_class.from_dict(tmp, c_idx, bank))
         hdf_fp.close()
 
 else:
