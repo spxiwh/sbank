@@ -25,7 +25,7 @@ from numpy import float32
 import lal
 import lalsimulation as lalsim
 from lal import MSUN_SI, MTSUN_SI, PC_SI, PI, SecondUnit, LIGOTimeGPS
-from lal import CreateREAL8Vector, CreateCOMPLEX8FrequencySeries
+from lal import CreateREAL8Vector, CreateCOMPLEX8FrequencySeries, CreateCOMPLEX16FrequencySeries
 from ligo.lw.lsctables import SnglInspiralTable as llwsit
 
 from .overlap import SBankComputeMatchSkyLoc, SBankComputeMatch
@@ -1179,11 +1179,8 @@ class IMRPhenomPv2THATemplate(IMRPrecessingSpinTemplate):
         # L-aligned frame
         h *= np.exp(2j * _dphi(thetaJN, alpha0, self.beta))
         # create LAL frequency array and return precessing harmonic
-        new = CreateCOMPLEX8FrequencySeries(
-            "", LIGOTimeGPS(hp.epoch), 0, df, SecondUnit, len(h)
-        )
-        new.data.data[:] = h[:]
-        return new
+        hp.data.data[:] = h[:]
+        return hp
 
     def _compute_waveform_five_comps(self, df, f_final):
         # calculate 5 harmonic decomposition as defined in 1908.05707
