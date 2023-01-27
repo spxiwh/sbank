@@ -499,6 +499,10 @@ class IMRPhenomDTemplate(IMRAlignedSpinTemplate):
         return dur * 1.1
 
 
+class IMRPhenomXASTemplate(IMRPhenomDTemplate):
+    approximant = "IMRPhenomXAS"
+
+
 class SEOBNRv2Template(IMRAlignedSpinTemplate):
     approximant = "SEOBNRv2"
 
@@ -1452,6 +1456,7 @@ waveforms = {
     "IMRPhenomB": IMRPhenomBTemplate,
     "IMRPhenomC": IMRPhenomCTemplate,
     "IMRPhenomD": IMRPhenomDTemplate,
+    "IMRPhenomXAS": IMRPhenomXASTemplate,
     "IMRPhenomP": IMRPhenomPTemplate,
     "IMRPhenomPv2": IMRPhenomPv2Template,
     "IMRPhenomPv2_THA": IMRPhenomPv2THATemplate,
